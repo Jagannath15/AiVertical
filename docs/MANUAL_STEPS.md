@@ -7,10 +7,33 @@ These cannot be scripted because they require human authorization.
 
 ## Table of Contents
 
+0. [Prerequisites](#0-prerequisites)
 1. [Create a GitHub Personal Access Token](#1-create-a-github-personal-access-token)
 2. [Store the Token in Jenkins](#2-store-the-token-in-jenkins)
-3. [Point Jenkins at Your Repository](#3-point-jenkins-at-your-repository)
+3. [Point Jenkins at Your Repository and Start It](#3-point-jenkins-at-your-repository-and-start-it)
 4. [Enable Branch Protection on main](#4-enable-branch-protection-on-main)
+
+---
+
+## 0. Prerequisites
+
+Install these before running any `docker compose` command.
+
+### Docker Desktop (Windows, WSL2 backend)
+
+1. Download Docker Desktop for Windows from **https://www.docker.com/products/docker-desktop/**.
+2. Run the installer. When prompted, select **"Use WSL 2 instead of Hyper-V"** (recommended).
+3. After install, start Docker Desktop from the Start menu. Wait for the whale icon in the system tray to show **"Docker Desktop is running"**.
+4. Open a PowerShell or terminal window and verify:
+   ```
+   docker --version
+   docker compose version
+   ```
+   Both should print version numbers without errors.
+
+### Git
+
+Confirm git is installed: `git --version`. If not, download from **https://git-scm.com/download/win**.
 
 ---
 
@@ -69,12 +92,56 @@ Option B is preferred for reproducibility. Never paste the raw token into `jenki
 
 ---
 
-## 3. Point Jenkins at Your Repository
+## 3. Point Jenkins at Your Repository and Start It
+
+### 3a. Set your repo name
 
 1. Open `jenkins/casc/jenkins.yaml` in your editor.
 2. Find every occurrence of `YOUR_ORG/YOUR_REPO` and replace with your actual `org/repo`, e.g. `acme/backend`.
-3. Restart Jenkins to apply: `docker compose restart jenkins`.
-4. In the Jenkins UI, verify the pipeline job appears and shows the correct repository URL under **Configure**.
+3. Save the file.
+
+### 3b. Create a `.env` file (optional but recommended)
+
+Copy `.env.example` to `.env` and fill in your values:
+
+```
+JENKINS_ADMIN_PASSWORD=choose_a_strong_password
+GITHUB_TOKEN=ghp_xxxx          # your GitHub PAT from Step 1
+GH_REPO=acme/backend
+JENKINS_URL=http://localhost:8080
+```
+
+> `.env` is gitignored — never commit it.
+
+### 3c. Build and start Jenkins
+
+From the project root (the folder containing `docker-compose.yml`):
+
+```bash
+# First run: build the image (5–10 min; downloads Jenkins LTS + tools)
+docker compose up -d --build
+
+# Check startup logs (wait until you see "Jenkins is fully up and running")
+docker compose logs -f jenkins
+```
+
+Press **Ctrl-C** to stop following logs. Jenkins keeps running in the background.
+
+### 3d. Verify Jenkins is running
+
+1. Open **http://localhost:8080** in your browser.
+2. Log in with username `admin` and the password you set in `JENKINS_ADMIN_PASSWORD` (default: `admin_change_me`).
+3. You should see the **Jenkins dashboard** — no setup wizard.
+4. Under **Dashboard**, the job `ai-vertical-pr-review` should be listed.
+5. Click the job → **Configure** → verify the repository URL shows your actual `org/repo`.
+
+### 3e. Apply JCasC changes
+
+If you later edit `jenkins/casc/jenkins.yaml`, apply changes with:
+
+```bash
+docker compose restart jenkins
+```
 
 ---
 
