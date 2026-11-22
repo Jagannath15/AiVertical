@@ -4,6 +4,24 @@ Running log of choices and trade-offs. Most recent first.
 
 ---
 
+## 2026-11-22 — Phase 2 fail-closed policy for scanners
+
+**Decision:** If a blocking scanner (Gitleaks, Semgrep, Trivy) cannot be verified as having actually run — binary missing, crash, bad commit range — the pipeline fails the build rather than reporting "clean". Each script writes an explicit `"error"` field (or `"found": null` for secrets) instead of an empty/clean result, and `post_comment.py`'s `determine_status` treats that as blocking.
+
+**Reason:** An initial implementation had `scan_secrets.sh` treat a missing Gitleaks binary the same as "no secrets found" — fail *open*. Caught in code review before any real PR ran against it. CLAUDE.md's hard rule ("if Gitleaks finds a secret, STOP before any LLM call") only works if "didn't find" and "didn't run" are never confused.
+
+**Trade-off:** A flaky scanner now blocks merges instead of silently passing them. Acceptable for a <10-dev team — a blocked PR gets noticed and re-run; a leaked secret does not.
+
+---
+
+## 2026-11-22 — Semgrep `--config=auto` kept for now, with `--metrics=off`
+
+**Decision:** `scan_code.sh` still uses `semgrep --config=auto`, which fetches rules from semgrep.dev at runtime — in tension with "prefer self-hosted, offline tools." Added `--metrics=off` to stop telemetry, but did not vendor a pinned local ruleset in this phase.
+
+**Reason:** Vendoring Semgrep's registry rulesets (p/ci, p/security-audit, etc.) into the repo/image is real scope — picking which rulesets, pinning versions, keeping them updated — and wasn't in Phase 2's plan. Flagged in code review as Important, not Critical: `scan_code.sh` already fails closed (any Semgrep failure is reported as a blocking error per the fail-closed policy above), so a network outage blocks merges rather than silently skipping the scan.
+
+**Follow-up:** Vendor a pinned Semgrep ruleset before this goes fully offline-first. Track as a Phase 2.5/3 item.
+
 ## 2026-11-22 — JCasC job-dsl script security disabled
 
 **Decision:** `security.globalJobDslSecurityConfiguration.useScriptSecurity: false` in `jenkins/casc/jenkins.yaml`.

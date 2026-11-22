@@ -10,8 +10,8 @@ trivy fs --format json --output findings/trivy.json --quiet . 2>/dev/null
 TRIVY_RC=$?
 
 if [ $TRIVY_RC -ne 0 ] || [ ! -f findings/trivy.json ]; then
-    echo '{"Results":[]}' > findings/trivy.json
-    echo "WARNING: Trivy scan failed or produced no output (exit $TRIVY_RC)." >&2
+    echo "{\"Results\":[],\"error\":\"trivy scan failed (exit $TRIVY_RC)\"}" > findings/trivy.json
+    echo "WARNING: Trivy scan failed (exit $TRIVY_RC). Treating as blocking, not clean." >&2
 fi
 
 echo "Trivy scan complete."

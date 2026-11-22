@@ -13,8 +13,10 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
                 script {
+                    def scmVars = checkout(scm)
+                    env.GIT_COMMIT = scmVars.GIT_COMMIT
+                    env.GIT_BRANCH = scmVars.GIT_BRANCH
                     def remote = sh(script: 'git remote get-url origin', returnStdout: true).trim()
                     env.GH_REPO = remote.replaceAll('.*github\\.com[:/]', '').replaceAll('\\.git$', '')
                 }
@@ -31,10 +33,13 @@ pipeline {
                             echo "Push to ${branch} — no PR to check. Skipping scanner stages."
                             return
                         }
-                        def pr = sh(
-                            script: "python3 scripts/github_api.py get-pr '${env.GH_REPO}' '${branch}'",
-                            returnStdout: true
-                        ).trim()
+                        def pr
+                        withEnv(["PR_BRANCH=${branch}"]) {
+                            pr = sh(
+                                script: 'python3 -m scripts.github_api get-pr "$GH_REPO" "$PR_BRANCH"',
+                                returnStdout: true
+                            ).trim()
+                        }
                         if (!pr || pr == 'none') {
                             currentBuild.result = 'NOT_BUILT'
                             echo "No open PR for branch ${branch}. Skipping scanner stages."
@@ -42,6 +47,7 @@ pipeline {
                         }
                         env.PR_NUMBER = pr
                         echo "Detected PR #${pr} for branch ${branch}"
+                        sh "python3 -m scripts.github_api set-status '${env.GH_REPO}' '${env.GIT_COMMIT}' pending 'Scanning...' jenkins/pr-check"
                     }
                 }
             }
@@ -53,7 +59,7 @@ pipeline {
                 sh 'git fetch --no-tags origin main || git fetch --no-tags origin master || true'
                 script {
                     env.MERGE_BASE = sh(
-                        script: 'git merge-base origin/main HEAD 2>/dev/null || git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD^',
+                        script: 'git merge-base origin/main HEAD 2>/dev/null || git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD',
                         returnStdout: true
                     ).trim()
                 }
@@ -68,9 +74,9 @@ pipeline {
                     def rc = sh(script: 'bash scripts/scan_secrets.sh', returnStatus: true)
                     if (rc != 0) {
                         withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
-                            sh 'python3 scripts/post_comment.py'
+                            sh 'python3 -m scripts.post_comment'
                         }
-                        error('Secret found — pipeline aborted before any LLM call')
+                        error('Secret scan blocked the pipeline (secret found, or scan could not be verified) — aborted before any LLM call')
                     }
                 }
             }
@@ -94,7 +100,10 @@ pipeline {
         stage('Run Tests') {
             when { expression { env.PR_NUMBER != null } }
             steps {
-                sh 'python3 -m pytest tests/ -v --tb=short 2>&1 | tee findings/test_results.txt || true'
+                script {
+                    def rc = sh(script: 'python3 -m pytest tests/ -v --tb=short > findings/test_output.txt 2>&1', returnStatus: true)
+                    sh "python3 -m scripts.write_findings_json findings/tests.json pytest ${rc == 0 ? '1' : '0'} findings/test_output.txt"
+                }
             }
         }
 
@@ -102,7 +111,7 @@ pipeline {
             when { expression { env.PR_NUMBER != null } }
             steps {
                 withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
-                    sh 'python3 scripts/post_comment.py'
+                    sh 'python3 -m scripts.post_comment'
                 }
             }
         }
@@ -111,7 +120,20 @@ pipeline {
     post {
         always {
             echo "Pipeline finished. Result: ${currentBuild.currentResult}"
-            cleanWs()
+        }
+        unsuccessful {
+            script {
+                if (env.PR_NUMBER != null && env.GIT_COMMIT) {
+                    withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                        sh "python3 -m scripts.github_api set-status '${env.GH_REPO}' '${env.GIT_COMMIT}' error 'Pipeline failed unexpectedly' jenkins/pr-check || true"
+                    }
+                }
+            }
+        }
+        cleanup {
+            // Declarative's cleanup block always runs last, after `unsuccessful`,
+            // so scripts/ is still present in the workspace when that stage needs it.
+            deleteDir()
         }
     }
 }

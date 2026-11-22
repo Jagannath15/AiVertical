@@ -67,6 +67,12 @@ Confirm git is installed: `git --version`. If not, download from **https://git-s
 
 **Option B — via JCasC (declarative, reproducible):**
 
+> ⚠️ Not currently wired up, and not recommended as-is: it requires putting
+> `GITHUB_TOKEN` in the Jenkins container's environment, which every pipeline
+> `sh` step — including PR code under test — would then inherit, bypassing
+> `withCredentials` scoping entirely (see `docs/DECISIONS.md`). Option A is
+> what Phase 2 assumes.
+
 Add the following block to `jenkins/casc/jenkins.yaml` (replace `<YOUR_TOKEN>`):
 
 ```yaml

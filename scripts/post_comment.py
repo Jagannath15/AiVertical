@@ -12,6 +12,7 @@ _FINDING_FILES = {
     "semgrep": "semgrep.json",
     "trivy": "trivy.json",
     "linters": "linters.json",
+    "tests": "tests.json",
 }
 
 
@@ -29,16 +30,23 @@ def load_findings(findings_dir: str) -> dict:
 
 def determine_status(findings: dict):
     secrets = findings.get("secrets") or {}
+    if secrets.get("error"):
+        return "failure", f"Secret scan could not be verified: {secrets['error']}"
     if secrets.get("found"):
         count = secrets.get("count", 1)
         return "failure", f"Secret(s) detected ({count} found) — merge blocked"
 
     semgrep = findings.get("semgrep") or {}
+    for err in semgrep.get("errors", []):
+        if err.get("type") == "ScanFailed":
+            return "failure", f"Code scan error: {err.get('message', 'semgrep failed')}"
     for r in semgrep.get("results", []):
         if (r.get("extra") or {}).get("severity") == "ERROR":
             return "failure", f"Semgrep ERROR finding in {r.get('path','?')}:{r.get('start',{}).get('line','?')}"
 
     trivy = findings.get("trivy") or {}
+    if trivy.get("error"):
+        return "failure", f"Dependency scan error: {trivy['error']}"
     for res in trivy.get("Results", []):
         for v in res.get("Vulnerabilities") or []:
             if v.get("Severity") == "CRITICAL":
@@ -47,6 +55,10 @@ def determine_status(findings: dict):
     linters = findings.get("linters") or {}
     if linters and not linters.get("passed", True):
         return "failure", f"Linter/tests failed ({linters.get('tool','?')})"
+
+    tests = findings.get("tests") or {}
+    if tests and not tests.get("passed", True):
+        return "failure", f"Tests failed ({tests.get('tool','?')})"
 
     return "success", "All checks passed"
 
@@ -101,6 +113,21 @@ def _linters_row(l):
     return f"| Linters / Tests | {icon} {status} ({l.get('tool','?')}) | {'—' if l.get('passed') else 'blocking'} |"
 
 
+def _tests_row(t):
+    if t is None:
+        return "| Tests | ⚠️ skipped | — |"
+    icon = "✅" if t.get("passed") else "🔴"
+    status = "passed" if t.get("passed") else "**failed**"
+    return f"| Tests | {icon} {status} ({t.get('tool','?')}) | {'—' if t.get('passed') else 'blocking'} |"
+
+
+def _tests_details(t):
+    if not t or t.get("passed") or not t.get("output"):
+        return ""
+    out = t["output"][:2000]
+    return f"\n<details><summary>Test output</summary>\n\n```\n{out}\n```\n\n</details>\n"
+
+
 def _semgrep_details(s):
     if not s or not s.get("results"):
         return ""
@@ -141,6 +168,7 @@ def build_comment(findings: dict) -> str:
         _semgrep_row(findings.get("semgrep")),
         _trivy_row(findings.get("trivy")),
         _linters_row(findings.get("linters")),
+        _tests_row(findings.get("tests")),
         "| AI Review | ⚠️ Phase 3 (not yet enabled) | advisory |",
     ])
 
@@ -148,6 +176,7 @@ def build_comment(findings: dict) -> str:
         _semgrep_details(findings.get("semgrep"))
         + _trivy_details(findings.get("trivy"))
         + _linters_details(findings.get("linters"))
+        + _tests_details(findings.get("tests"))
     )
 
     return (
@@ -178,12 +207,15 @@ def main():
     except Exception as e:
         print(f"WARNING: could not post PR comment: {e}", file=sys.stderr)
 
-    if sha:
-        try:
-            set_commit_status(repo, sha, state, desc[:140], STATUS_CONTEXT, token)
-        except Exception as e:
-            print(f"WARNING: could not set commit status: {e}", file=sys.stderr)
-            sys.exit(1)
+    if not sha:
+        print("ERROR: GIT_COMMIT not set, cannot set status check", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        set_commit_status(repo, sha, state, desc[:140], STATUS_CONTEXT, token)
+    except Exception as e:
+        print(f"WARNING: could not set commit status: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

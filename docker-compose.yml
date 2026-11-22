@@ -18,8 +18,12 @@ services:
       - CASC_JENKINS_CONFIG=/var/jenkins_casc
       # REQUIRED — no default. Set in .env or export before docker compose up.
       - JENKINS_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD:?Please set JENKINS_ADMIN_PASSWORD in .env (see .env.example)}
-      # GitHub PAT — passed to JCasC credentials block (see MANUAL_STEPS.md Option B)
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # NOTE: GITHUB_TOKEN is deliberately NOT set here. If it were, every
+      # `sh` step in every build (including PR code under test — npm test,
+      # pytest, mvn, etc.) would inherit it from the container environment,
+      # bypassing withCredentials scoping entirely. Store the PAT as a Jenkins
+      # credential (see MANUAL_STEPS.md Option A) instead, and inject it only
+      # where the Jenkinsfile's withCredentials block needs it.
       # Jenkins public URL — update when moving to a server with a real hostname
       - JENKINS_URL=${JENKINS_URL:-http://localhost:8080}
 

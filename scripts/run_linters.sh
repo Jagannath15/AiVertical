@@ -37,7 +37,11 @@ else
     exit 0
 fi
 
-if [ $RC -eq 0 ]; then
+if [ $RC -eq 127 ]; then
+    # Tool binary not installed — distinct from the tool running and failing.
+    write_result "True" "$TOOL" "$TOOL not installed — skipped (not treated as a failure)"
+    echo "$TOOL not installed — skipping."
+elif [ $RC -eq 0 ]; then
     write_result "True" "$TOOL" "$OUTPUT"
     echo "$TOOL passed."
 else
