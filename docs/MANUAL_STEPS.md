@@ -11,7 +11,7 @@ These cannot be scripted because they require human authorization.
 1. [Create a GitHub Personal Access Token](#1-create-a-github-personal-access-token)
 2. [Store the Token in Jenkins](#2-store-the-token-in-jenkins)
 3. [Point Jenkins at Your Repository and Start It](#3-point-jenkins-at-your-repository-and-start-it)
-4. [Enable Branch Protection on main](#4-enable-branch-protection-on-main)
+4. [Enable Branch Protection on main](#4-enable-branch-protection-on-main) *(Phase 2 step)*
 
 ---
 
@@ -130,7 +130,7 @@ Press **Ctrl-C** to stop following logs. Jenkins keeps running in the background
 ### 3d. Verify Jenkins is running
 
 1. Open **http://localhost:8080** in your browser.
-2. Log in with username `admin` and the password you set in `JENKINS_ADMIN_PASSWORD` (default: `admin_change_me`).
+2. Log in with username `admin` and the password you set in `JENKINS_ADMIN_PASSWORD`.
 3. You should see the **Jenkins dashboard** — no setup wizard.
 4. Under **Dashboard**, the job `ai-vertical-pr-review` should be listed.
 5. Click the job → **Configure** → verify the repository URL shows your actual `org/repo`.
@@ -147,16 +147,18 @@ docker compose restart jenkins
 
 ## 4. Enable Branch Protection on main
 
-> **Bootstrap order warning:** Set branch protection AFTER the first successful pipeline run. If you enable it before Jenkins has ever posted a status check, the required status check (`jenkins/pr-check`) will never appear as an option.
+> **Phase 2 step.** The status check `jenkins/pr-check` is posted by `post_comment.py` (Phase 2). The Phase 1 stub Jenkinsfile does NOT post a status check, so GitHub will never show it as an option until Phase 2 is deployed.
+>
+> **Bootstrap order:** Complete this section AFTER Phase 2 is live and at least one pipeline run has posted a `jenkins/pr-check` status.
 
 ### Steps
 
-1. Push at least one commit to `main` and let the Jenkins pipeline run successfully (even the stub Jenkinsfile from Phase 1 is enough).
+1. Deploy Phase 2 and push a test PR. Wait for the pipeline to run and post the `jenkins/pr-check` status to GitHub.
 2. Go to **GitHub → Your Repo → Settings → Branches → Add branch protection rule**.
 3. Branch name pattern: `main`.
 4. Check **Require a pull request before merging**.
 5. Check **Require status checks to pass before merging**.
-6. In the search box, type `jenkins` — select **`jenkins/pr-check`** (it appears after at least one pipeline run).
+6. In the search box, type `jenkins` — select **`jenkins/pr-check`** (it appears after at least one Phase 2 pipeline run).
 7. Check **Require branches to be up to date before merging**.
 8. Check **Do not allow bypassing the above settings** (optional but recommended).
 9. Click **Create**.

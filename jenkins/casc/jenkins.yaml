@@ -4,8 +4,8 @@
 #
 # BEFORE FIRST RUN:
 #   1. Replace YOUR_ORG/YOUR_REPO with your actual GitHub repo (e.g. acme/backend).
-#   2. Set JENKINS_ADMIN_PASSWORD env var in your shell or docker-compose .env.
-#      Default "admin_change_me" is intentionally weak — change it.
+#   2. Set JENKINS_ADMIN_PASSWORD in .env — docker-compose will refuse to start without it.
+#      No default is provided; never add one here.
 
 jenkins:
   systemMessage: "AI Vertical CI — PR Review + Code Chatbot"
@@ -17,7 +17,7 @@ jenkins:
       allowsSignup: false
       users:
         - id: "admin"
-          password: "${JENKINS_ADMIN_PASSWORD:-admin_change_me}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
 
   authorizationStrategy:
     loggedInUsersCanDoAnything:

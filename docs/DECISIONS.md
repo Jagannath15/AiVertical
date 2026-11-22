@@ -4,6 +4,16 @@ Running log of choices and trade-offs. Most recent first.
 
 ---
 
+## 2026-11-22 — JCasC job-dsl script security disabled
+
+**Decision:** `security.globalJobDslSecurityConfiguration.useScriptSecurity: false` in `jenkins/casc/jenkins.yaml`.
+
+**Reason:** JCasC-defined job-dsl scripts must pass the sandbox approval check before they run. For a fresh Jenkins instance with no pre-approved scripts, this causes the pipeline job to fail on first boot. Disabling sandboxing lets the job-dsl `jobs:` block in the YAML run without an admin clicking "Approve Script".
+
+**Risk:** Any Groovy script in the JCasC `jobs:` section — including future additions — runs unsandboxed as the Jenkins admin process. This is acceptable because: (a) only repo maintainers can edit `jenkins/casc/jenkins.yaml`, and (b) the Jenkins instance is not publicly exposed. If Jenkins ever becomes publicly reachable, re-enable sandboxing and approve the job-dsl scripts individually.
+
+---
+
 ## 2026-11-22 — Docs generation dropped
 
 **Decision:** Remove the docs generation feature (originally Phase 4).

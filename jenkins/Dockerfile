@@ -2,7 +2,7 @@ FROM jenkins/jenkins:lts-jdk17
 
 # Skip the interactive setup wizard; JCasC configures Jenkins on first boot
 ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false"
-ENV CASC_JENKINS_CONFIG="/var/jenkins_home/casc"
+ENV CASC_JENKINS_CONFIG="/var/jenkins_casc"
 
 # Install plugins as the jenkins user (image default)
 COPY jenkins/plugins.txt /usr/share/jenkins/ref/plugins.txt
@@ -39,8 +39,10 @@ RUN set -eux; \
     chmod +x /usr/local/bin/trivy; \
     rm /tmp/trivy.tar.gz
 
-# Semgrep (--break-system-packages is correct in a Dockerfile context)
-RUN pip3 install --no-cache-dir semgrep --break-system-packages
+# Semgrep — pin version for reproducible builds.
+# Check https://pypi.org/project/semgrep/ for latest stable before upgrading.
+ARG SEMGREP_VERSION=1.74.0
+RUN pip3 install --no-cache-dir "semgrep==${SEMGREP_VERSION}" --break-system-packages
 
 # ── Back to unprivileged jenkins user ─────────────────────────────────────────
 USER jenkins
