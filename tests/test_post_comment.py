@@ -259,3 +259,14 @@ def test_build_comment_shows_ai_review_finding_details():
     }
     comment = build_comment(findings)
     assert "SQL injection risk" in comment
+
+
+def test_build_comment_shows_partial_ai_review_not_clean():
+    findings = {
+        "secrets": {"found": False}, "semgrep": {"results": [], "errors": []},
+        "trivy": {"Results": []}, "linters": {"passed": True, "tool": "none", "output": ""},
+        "ai_review": {"skipped": False, "findings": [], "partial": True, "chunks_reviewed": 1, "chunks_total": 3},
+    }
+    comment = build_comment(findings)
+    assert "partial" in comment.lower()
+    assert "1/3" in comment or "1 of 3" in comment

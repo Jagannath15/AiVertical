@@ -1,5 +1,5 @@
-// Phase 2 — scanners, PR comment, status check.
-// Secret found => abort immediately, before any LLM call (none exist yet; AI review is Phase 3).
+// Phases 2+3 — scanners, AI review, PR comment, status check.
+// Secret found => abort immediately, before the AI Review stage can ever run.
 
 pipeline {
     agent any
@@ -115,9 +115,18 @@ pipeline {
                         withCredentials([string(credentialsId: 'llm-api-key', variable: 'LLM_API_KEY')]) {
                             sh 'python3 -m scripts.ai_review'
                         }
+                    } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException fie) {
+                        // A build abort or the pipeline's own 30-minute timeout firing
+                        // during this stage - never swallow that as "AI review skipped".
+                        throw fie
                     } catch (Exception e) {
-                        echo "AI review skipped: credential 'llm-api-key' not available (${e.getMessage()})"
-                        sh '''python3 -c "import json; json.dump({'skipped': True, 'reason': 'llm-api-key credential not configured'}, open('findings/ai_review.json', 'w'))"'''
+                        // Covers both an undefined llm-api-key credential (Jenkins throws
+                        // before any Python runs) and a genuine ai_review.py crash - either
+                        // way, degrade to skipped rather than fail the whole pipeline. The
+                        // real exception class/message goes to the console log, not into a
+                        // guessed "credential not configured" reason.
+                        echo "AI Review stage did not complete, treating as skipped: ${e.class.simpleName}: ${e.getMessage()}"
+                        sh '''python3 -c "import json; json.dump({'skipped': True, 'reason': 'AI Review stage error - see Jenkins console log'}, open('findings/ai_review.json', 'w'))"'''
                     }
                 }
             }

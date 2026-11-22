@@ -14,6 +14,19 @@ Running log of choices and trade-offs. Most recent first.
 
 ---
 
+## 2026-11-22 — AI review: secrets scanned per-chunk before sending, "skipped" means skipped
+
+**Decision:** Two fixes from the final review of Phase 3, before any live run with `LLM_ALLOW_CLOUD=true`:
+
+1. `scripts/ai_review.py` now runs Gitleaks against the *exact* diff payload of each chunk (`chunk_contains_secret`, via a temp file + `gitleaks detect --no-git`) before sending it to the LLM, fails closed (treats "couldn't check" as "contains a secret") if Gitleaks itself is unavailable, and skips that chunk if anything is found.
+2. `main()` now distinguishes "reviewed, found nothing" from "never actually reviewed" — `findings/ai_review.json` only reports `skipped: false` when at least one chunk was genuinely reviewed; an LLM outage, bad key, or every chunk containing a possible secret now reports `skipped: true`, never a false "✅ clean".
+
+**Reason:** Phase 2's `Scan Secrets` stage only scans *added* lines in `MERGE_BASE..HEAD` via Gitleaks' git-log mode. `git diff` — what `ai_review.py` actually sends to the LLM — also includes **removed lines** and **3 lines of unchanged context** around every change. A PR that removes a hardcoded secret, or edits a line near an existing secret already on `main`, would pass the Scan Secrets gate while still sending that secret to a cloud LLM in the diff context. This was latent (inert while `LLM_ALLOW_CLOUD=false`) but would have gone live the moment cloud calls were enabled. Caught in the final review before that happened.
+
+**Cost if these had shipped as originally written:** secret exposure to a third-party cloud provider, and a pipeline that silently misreports "AI review: ✅ clean" during any LLM outage — the exact failure mode the hard rule ("comment says AI review was skipped") exists to prevent.
+
+---
+
 ## 2026-11-22 — AI review cloud/local detection: literal loopback only, for now
 
 **Decision:** `scripts/ai_review.py`'s `is_cloud_endpoint` treats only `localhost`/`127.0.0.1`/`::1` as local; everything else (including a future `host.docker.internal` or docker-compose service like `ollama`) is cloud and refused unless `LLM_ALLOW_CLOUD=true`.

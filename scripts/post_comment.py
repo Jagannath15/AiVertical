@@ -142,10 +142,15 @@ def _ai_review_row(a):
     findings = a.get("findings", [])
     blocking = [f for f in findings if f.get("severity") == "high" and f.get("category") == "security"]
     advisory_count = len(findings) - len(blocking)
+    partial_suffix = ""
+    if a.get("partial"):
+        partial_suffix = f" (partial: {a.get('chunks_reviewed','?')}/{a.get('chunks_total','?')} chunks reviewed)"
     if blocking:
-        return f"| AI Review | 🔴 {len(blocking)} blocking, {advisory_count} advisory | blocking |"
+        return f"| AI Review | 🔴 {len(blocking)} blocking, {advisory_count} advisory{partial_suffix} | blocking |"
     if findings:
-        return f"| AI Review | ⚠️ {len(findings)} advisory | advisory |"
+        return f"| AI Review | ⚠️ {len(findings)} advisory{partial_suffix} | advisory |"
+    if a.get("partial"):
+        return f"| AI Review | ⚠️ partial ({a.get('chunks_reviewed','?')}/{a.get('chunks_total','?')} chunks reviewed), 0 findings | advisory |"
     return "| AI Review | ✅ clean | — |"
 
 
