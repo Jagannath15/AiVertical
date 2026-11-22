@@ -1,0 +1,12 @@
+# Default: LF for all text files (enforced in Docker containers)
+* text=auto eol=lf
+
+# Explicitly binary — never mangle
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.gz binary
+*.zip binary
+*.tar binary
+*.whl binary
