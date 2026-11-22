@@ -1,0 +1,38 @@
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: jenkins/Dockerfile
+    container_name: jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"    # Jenkins UI
+      - "50000:50000"  # Jenkins agent inbound port
+    volumes:
+      # Persistent Jenkins home (jobs, build history, credentials)
+      - jenkins_home:/var/jenkins_home
+      # JCasC config files — mounted read-only; edit on host, restart to apply
+      - ./jenkins/casc:/var/jenkins_home/casc:ro
+    environment:
+      - CASC_JENKINS_CONFIG=/var/jenkins_home/casc
+      # Admin password — override via .env file or shell export (never commit the real value)
+      - JENKINS_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD:-admin_change_me}
+      # GitHub PAT — used by JCasC credentials block (see MANUAL_STEPS.md Option B)
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # Jenkins public URL — update when moving to a server with a real hostname
+      - JENKINS_URL=${JENKINS_URL:-http://localhost:8080}
+
+  # ── Qdrant (vector DB for chatbot — Phase 4) ─────────────────────────────
+  # Uncomment when starting Phase 4.
+  # qdrant:
+  #   image: qdrant/qdrant:latest
+  #   container_name: qdrant
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6333:6333"
+  #   volumes:
+  #     - qdrant_data:/qdrant/storage
+
+volumes:
+  jenkins_home:
+  # qdrant_data:

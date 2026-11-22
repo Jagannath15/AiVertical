@@ -1,0 +1,63 @@
+# Jenkins Configuration as Code (JCasC)
+# Applied automatically on startup. Edit here, restart Jenkins to re-apply.
+# Docs: https://github.com/jenkinsci/configuration-as-code-plugin
+#
+# BEFORE FIRST RUN:
+#   1. Replace YOUR_ORG/YOUR_REPO with your actual GitHub repo (e.g. acme/backend).
+#   2. Set JENKINS_ADMIN_PASSWORD env var in your shell or docker-compose .env.
+#      Default "admin_change_me" is intentionally weak — change it.
+
+jenkins:
+  systemMessage: "AI Vertical CI — PR Review + Code Chatbot"
+  numExecutors: 2
+  scmCheckoutRetryCount: 2
+
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${JENKINS_ADMIN_PASSWORD:-admin_change_me}"
+
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+unclassified:
+  location:
+    # Must match the URL Jenkins is reachable at (used in GitHub status check links)
+    url: "${JENKINS_URL:-http://localhost:8080}"
+
+security:
+  # Allow job-dsl scripts in JCasC without sandbox approval (safe in a controlled CI env)
+  globalJobDslSecurityConfiguration:
+    useScriptSecurity: false
+
+jobs:
+  - script: |
+      pipelineJob('ai-vertical-pr-review') {
+        description(
+          'Scans PRs: secrets (Gitleaks), code (Semgrep), deps (Trivy), linters, AI review. ' +
+          'Posts one combined PR comment and sets a GitHub status check.'
+        )
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('https://github.com/YOUR_ORG/YOUR_REPO.git')
+                  credentials('github-token')
+                }
+                // Poll all branches; Jenkinsfile decides whether to act on a PR
+                branches('**')
+              }
+            }
+            scriptPath('Jenkinsfile')
+            lightweight(true)
+          }
+        }
+        triggers {
+          // Poll every minute. Switch to githubPush() when a public Jenkins URL exists.
+          scm('H/1 * * * *')
+        }
+      }
