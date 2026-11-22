@@ -13,6 +13,7 @@ _FINDING_FILES = {
     "trivy": "trivy.json",
     "linters": "linters.json",
     "tests": "tests.json",
+    "ai_review": "ai_review.json",
 }
 
 
@@ -59,6 +60,11 @@ def determine_status(findings: dict):
     tests = findings.get("tests") or {}
     if tests and not tests.get("passed", True):
         return "failure", f"Tests failed ({tests.get('tool','?')})"
+
+    ai_review = findings.get("ai_review") or {}
+    for f in ai_review.get("findings", []):
+        if f.get("severity") == "high" and f.get("category") == "security":
+            return "failure", f"AI review: high-confidence security finding in {f.get('file','?')}:{f.get('line','?')}"
 
     return "success", "All checks passed"
 
@@ -128,6 +134,32 @@ def _tests_details(t):
     return f"\n<details><summary>Test output</summary>\n\n```\n{out}\n```\n\n</details>\n"
 
 
+def _ai_review_row(a):
+    if a is None:
+        return "| AI Review | ⚠️ Phase 3 (not yet enabled) | advisory |"
+    if a.get("skipped"):
+        return f"| AI Review | ⚠️ skipped ({a.get('reason','?')}) | advisory |"
+    findings = a.get("findings", [])
+    blocking = [f for f in findings if f.get("severity") == "high" and f.get("category") == "security"]
+    advisory_count = len(findings) - len(blocking)
+    if blocking:
+        return f"| AI Review | 🔴 {len(blocking)} blocking, {advisory_count} advisory | blocking |"
+    if findings:
+        return f"| AI Review | ⚠️ {len(findings)} advisory | advisory |"
+    return "| AI Review | ✅ clean | — |"
+
+
+def _ai_review_details(a):
+    if not a or a.get("skipped") or not a.get("findings"):
+        return ""
+    lines = [
+        f"- **{f.get('severity','?')}/{f.get('category','?')}** `{f.get('file','?')}:{f.get('line','?')}` {f.get('message','')}"
+        for f in a["findings"][:20]
+    ]
+    body = "\n".join(lines)
+    return f"\n<details><summary>AI review findings ({len(a['findings'])})</summary>\n\n{body}\n\n</details>\n"
+
+
 def _semgrep_details(s):
     if not s or not s.get("results"):
         return ""
@@ -169,7 +201,7 @@ def build_comment(findings: dict) -> str:
         _trivy_row(findings.get("trivy")),
         _linters_row(findings.get("linters")),
         _tests_row(findings.get("tests")),
-        "| AI Review | ⚠️ Phase 3 (not yet enabled) | advisory |",
+        _ai_review_row(findings.get("ai_review")),
     ])
 
     details = (
@@ -177,6 +209,7 @@ def build_comment(findings: dict) -> str:
         + _trivy_details(findings.get("trivy"))
         + _linters_details(findings.get("linters"))
         + _tests_details(findings.get("tests"))
+        + _ai_review_details(findings.get("ai_review"))
     )
 
     return (

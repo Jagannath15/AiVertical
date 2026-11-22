@@ -202,3 +202,60 @@ def test_main_posts_comment_and_sets_status(monkeypatch, tmp_path):
     assert mock_post.called
     assert mock_status.called
     assert mock_status.call_args[0][2] == "success"
+
+
+def test_determine_status_blocks_on_high_security_ai_finding():
+    findings = {
+        "secrets": {"found": False}, "semgrep": {"results": [], "errors": []},
+        "trivy": {"Results": []}, "linters": {"passed": True, "tool": "none", "output": ""},
+        "ai_review": {"skipped": False, "findings": [
+            {"file": "a.py", "line": 5, "severity": "high", "category": "security", "message": "SQL injection"}
+        ]},
+    }
+    state, desc = determine_status(findings)
+    assert state == "failure"
+    assert "a.py" in desc
+
+
+def test_determine_status_advisory_ai_finding_does_not_block():
+    findings = {
+        "secrets": {"found": False}, "semgrep": {"results": [], "errors": []},
+        "trivy": {"Results": []}, "linters": {"passed": True, "tool": "none", "output": ""},
+        "ai_review": {"skipped": False, "findings": [
+            {"file": "a.py", "line": 5, "severity": "low", "category": "style", "message": "naming nit"}
+        ]},
+    }
+    state, _ = determine_status(findings)
+    assert state == "success"
+
+
+def test_determine_status_ignores_missing_ai_review_key():
+    findings = {
+        "secrets": {"found": False}, "semgrep": {"results": [], "errors": []},
+        "trivy": {"Results": []}, "linters": {"passed": True, "tool": "none", "output": ""},
+        "ai_review": None,
+    }
+    state, _ = determine_status(findings)
+    assert state == "success"
+
+
+def test_build_comment_shows_skipped_ai_review_reason():
+    findings = {
+        "secrets": {"found": False}, "semgrep": {"results": [], "errors": []},
+        "trivy": {"Results": []}, "linters": {"passed": True, "tool": "none", "output": ""},
+        "ai_review": {"skipped": True, "reason": "cloud LLM not allowed (LLM_ALLOW_CLOUD=false)"},
+    }
+    comment = build_comment(findings)
+    assert "LLM_ALLOW_CLOUD" in comment
+
+
+def test_build_comment_shows_ai_review_finding_details():
+    findings = {
+        "secrets": {"found": False}, "semgrep": {"results": [], "errors": []},
+        "trivy": {"Results": []}, "linters": {"passed": True, "tool": "none", "output": ""},
+        "ai_review": {"skipped": False, "findings": [
+            {"file": "a.py", "line": 5, "severity": "high", "category": "security", "message": "SQL injection risk"}
+        ]},
+    }
+    comment = build_comment(findings)
+    assert "SQL injection risk" in comment
