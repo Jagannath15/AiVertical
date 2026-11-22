@@ -53,7 +53,13 @@ jobs:
               }
             }
             scriptPath('Jenkinsfile')
-            lightweight(true)
+            // lightweight(true) makes Jenkins fetch just the Jenkinsfile via
+            // GitSCMFileSystem before deciding to build - but that path turns
+            // branches('**') into a literal git refspec "refs/heads/**",
+            // which jgit rejects (IllegalArgumentException: Invalid refspec).
+            // ** is only valid for Jenkins' own branch-name matching, not for
+            // an actual refspec. Full checkout sidesteps that lookup entirely.
+            lightweight(false)
           }
         }
         triggers {
