@@ -4,6 +4,26 @@ Running log of choices and trade-offs. Most recent first.
 
 ---
 
+## 2026-11-22 — Call-graph context: build it ourselves, not CodeGraphContext or Graphify
+
+**Decision:** `scripts/call_graph.py` is a ~150-line stdlib `ast` module, Python-only, zero third-party dependencies. Both CodeGraphContext and a tool called "Graphify" were evaluated and rejected.
+
+**Reason:** CodeGraphContext (github.com/CodeGraphContext/CodeGraphContext) checked out cleanly on direct verification — MIT, org-owned, 15 months old, 4.4k stars, organic growth — but is explicitly PyPI "Alpha" status. Graphify (github.com/Graphify-Labs/graphify) also checked out as a real org-owned Apache-2.0 project, not the scam it initially looked like (an earlier "1-day-old release" read was a factual error — the repo is 7.5 months old), but has genuinely anomalous growth (151.7k stars in that time), a double-y PyPI package name its own README has to disclaim (`graphifyy`, warning that other `graphify*` packages are impostors), a hosted Cloud/MCP service, and an installer that writes into AI-assistant config/hooks. For a private-code pipeline, the risk/value trade-off of either third-party tool lost to writing a narrower, fully self-hosted one ourselves.
+
+**Trade-off:** our version only resolves calls by last-component name matching (no type inference), is Python-only, and will over-report callers in ambiguous cases (two functions named `run` both show up). Acceptable — it's advisory LLM-prompt context, not a precise dependency map. Non-Python PRs get no graph context this phase.
+
+---
+
+## 2026-11-22 — AI review cloud/local detection: literal loopback only, for now
+
+**Decision:** `scripts/ai_review.py`'s `is_cloud_endpoint` treats only `localhost`/`127.0.0.1`/`::1` as local; everything else (including a future `host.docker.internal` or docker-compose service like `ollama`) is cloud and refused unless `LLM_ALLOW_CLOUD=true`.
+
+**Reason:** No local LLM setup exists yet. Guessing the real network topology now (sibling compose service name? Windows-host Ollama reached via `host.docker.internal`?) risks either silently breaking local mode later or — worse — misclassifying a real network-reachable endpoint as "local" and sending diff content out unguarded. Erring toward refusing (not leaking) until the actual topology is known.
+
+**Follow-up:** when a local model is actually set up, add its real hostname/compose-service-name to the local-detection list then — don't guess it now.
+
+---
+
 ## 2026-11-22 — Two credential IDs for one PAT: `github-checkout` and `github-token`
 
 **Decision:** Split what was one credential ID (`github-token`) into two: `github-checkout` (Username with password, used by the Git SCM checkout in `jenkins/casc/jenkins.yaml`) and `github-token` (Secret text, used by `withCredentials([string(...)])` in the Jenkinsfile for PR comments and status checks). Both hold the same PAT value.

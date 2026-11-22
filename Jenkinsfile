@@ -107,6 +107,22 @@ pipeline {
             }
         }
 
+        stage('AI Review') {
+            when { expression { env.PR_NUMBER != null } }
+            steps {
+                script {
+                    try {
+                        withCredentials([string(credentialsId: 'llm-api-key', variable: 'LLM_API_KEY')]) {
+                            sh 'python3 -m scripts.ai_review'
+                        }
+                    } catch (Exception e) {
+                        echo "AI review skipped: credential 'llm-api-key' not available (${e.getMessage()})"
+                        sh '''python3 -c "import json; json.dump({'skipped': True, 'reason': 'llm-api-key credential not configured'}, open('findings/ai_review.json', 'w'))"'''
+                    }
+                }
+            }
+        }
+
         stage('Post Results') {
             when { expression { env.PR_NUMBER != null } }
             steps {

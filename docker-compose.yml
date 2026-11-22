@@ -26,6 +26,12 @@ services:
       # where the Jenkinsfile's withCredentials block needs it.
       # Jenkins public URL — update when moving to a server with a real hostname
       - JENKINS_URL=${JENKINS_URL:-http://localhost:8080}
+      # AI review (Phase 3) — non-secret config only. LLM_API_KEY is
+      # deliberately NOT here, same reasoning as GITHUB_TOKEN above: it goes
+      # in the Jenkinsfile's withCredentials block (credential ID llm-api-key).
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o}
+      - LLM_ALLOW_CLOUD=${LLM_ALLOW_CLOUD:-false}
 
   # ── Qdrant (vector DB for chatbot — Phase 4) ─────────────────────────────
   # Uncomment when starting Phase 4.

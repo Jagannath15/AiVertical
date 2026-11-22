@@ -11,6 +11,7 @@ These cannot be scripted because they require human authorization.
 1. [Create a GitHub Personal Access Token](#1-create-a-github-personal-access-token)
 2. [Store the Token in Jenkins](#2-store-the-token-in-jenkins)
 3. [Point Jenkins at Your Repository and Start It](#3-point-jenkins-at-your-repository-and-start-it)
+3c. [Store the LLM API Key in Jenkins](#3c-store-the-llm-api-key-in-jenkins) *(Phase 3 step)*
 4. [Enable Branch Protection on main](#4-enable-branch-protection-on-main) *(Phase 2 step)*
 
 ---
@@ -140,6 +141,25 @@ If you later edit `jenkins/casc/jenkins.yaml`, apply changes with:
 ```bash
 docker compose restart jenkins
 ```
+
+---
+
+## 3c. Store the LLM API Key in Jenkins
+
+> **Phase 3 step.** The `AI Review` stage needs an LLM API key to call a cloud
+> provider (set `LLM_ALLOW_CLOUD=true` in `.env` to allow this — see
+> `.env.example`). **This step is optional to do right away**: if the
+> `llm-api-key` credential doesn't exist yet, the `AI Review` stage detects
+> that and writes "skipped" into the PR comment instead of failing the build —
+> safe to skip for now, not a blocker to merging.
+
+1. Open Jenkins at `http://localhost:8080`.
+2. Go to **Manage Jenkins → Credentials → System → Global credentials → Add Credentials**.
+3. Kind: **Secret text**.
+4. Secret: paste your LLM provider's API key.
+5. ID: `llm-api-key` ← **this exact ID is used in the Jenkinsfile**.
+6. Description: `LLM API key for AI code review`.
+7. Click **Create**.
 
 ---
 
