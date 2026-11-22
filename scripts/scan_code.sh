@@ -30,10 +30,12 @@ if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
 fi
 
 echo "Running Semgrep on changed files..."
-# --metrics=off: do not send telemetry to semgrep.dev (CLAUDE.md: prefer
-# offline tools). --config=auto still fetches rules over the network; vendoring
-# a pinned local ruleset is a documented follow-up (see docs/DECISIONS.md).
-semgrep --config=auto --metrics=off --json --output findings/semgrep.json "${CHANGED_FILES[@]}" 2>/dev/null
+# --config=auto requires metrics ON (semgrep refuses to run: "Cannot create
+# auto config when metrics are off") - confirmed by running it. p/ci is a
+# named registry ruleset instead of the project-profiling "auto" config, so
+# --metrics=off works with it. Still needs network to fetch the ruleset;
+# vendoring it locally is a documented follow-up (see docs/DECISIONS.md).
+semgrep --config=p/ci --metrics=off --json --output findings/semgrep.json "${CHANGED_FILES[@]}" 2>/dev/null
 SEMGREP_RC=$?
 
 if [ ! -f findings/semgrep.json ]; then

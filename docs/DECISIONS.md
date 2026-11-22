@@ -14,11 +14,13 @@ Running log of choices and trade-offs. Most recent first.
 
 ---
 
-## 2026-11-22 — Semgrep `--config=auto` kept for now, with `--metrics=off`
+## 2026-11-22 — Semgrep uses `p/ci` registry ruleset with `--metrics=off`, not `--config=auto`
 
-**Decision:** `scan_code.sh` still uses `semgrep --config=auto`, which fetches rules from semgrep.dev at runtime — in tension with "prefer self-hosted, offline tools." Added `--metrics=off` to stop telemetry, but did not vendor a pinned local ruleset in this phase.
+**Decision:** `scan_code.sh` runs `semgrep --config=p/ci --metrics=off`. Still fetches rules from the Semgrep registry at runtime — in tension with "prefer self-hosted, offline tools" — but does not use `--config=auto` and does not send telemetry.
 
-**Reason:** Vendoring Semgrep's registry rulesets (p/ci, p/security-audit, etc.) into the repo/image is real scope — picking which rulesets, pinning versions, keeping them updated — and wasn't in Phase 2's plan. Flagged in code review as Important, not Critical: `scan_code.sh` already fails closed (any Semgrep failure is reported as a blocking error per the fail-closed policy above), so a network outage blocks merges rather than silently skipping the scan.
+**Reason:** Code review flagged `--config=auto` for sending metrics to semgrep.dev. Tried `--config=auto --metrics=off` first; confirmed by running it against this repo in the real Jenkins container that Semgrep refuses that combination outright ("Cannot create auto config when metrics are off"). `--config=auto` does project profiling that requires metrics; a named registry ruleset like `p/ci` does not. Switched to `p/ci`, confirmed working the same way (real run, real container, 21 rules, 0 findings on a clean file).
+
+**Trade-off:** `p/ci` still needs network access to fetch the ruleset — vendoring it locally into the image is a real scope item (picking rulesets, pinning versions, keeping them updated) deferred past Phase 2. `scan_code.sh` fails closed on any Semgrep failure (see the fail-closed policy above), so a network outage blocks merges rather than silently skipping the scan.
 
 **Follow-up:** Vendor a pinned Semgrep ruleset before this goes fully offline-first. Track as a Phase 2.5/3 item.
 

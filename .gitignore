@@ -22,6 +22,9 @@ node_modules/
 # Superpowers workspace (git-ignored scratch)
 .superpowers/
 
+# Scanner findings (regenerated per build; may contain secret RuleIDs, raw scan paths)
+findings/
+
 # Jenkins home volume data
 jenkins_home/
 
