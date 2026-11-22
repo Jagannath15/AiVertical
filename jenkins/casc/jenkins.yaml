@@ -45,7 +45,7 @@ jobs:
             scm {
               git {
                 remote {
-                  url('https://github.com/YOUR_ORG/YOUR_REPO.git')
+                  url('https://github.com/Jagannath15/AiVertical.git')
                   credentials('github-token')
                 }
                 // Poll all branches; Jenkinsfile decides whether to act on a PR
