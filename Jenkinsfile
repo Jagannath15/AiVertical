@@ -1,5 +1,5 @@
-// Phase 1 stub — validates the Jenkins + GitHub pipeline connection.
-// Phase 2 will replace the Placeholder stage with real scanner stages.
+// Phase 2 — scanners, PR comment, status check.
+// Secret found => abort immediately, before any LLM call (none exist yet; AI review is Phase 3).
 
 pipeline {
     agent any
@@ -7,7 +7,6 @@ pipeline {
     options {
         timeout(time: 30, unit: 'MINUTES')
         skipDefaultCheckout()
-        // Keep only the last 20 builds to save disk space
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
@@ -15,16 +14,96 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+                script {
+                    def remote = sh(script: 'git remote get-url origin', returnStdout: true).trim()
+                    env.GH_REPO = remote.replaceAll('.*github\\.com[:/]', '').replaceAll('\\.git$', '')
+                }
             }
         }
 
-        stage('Placeholder') {
+        stage('Detect PR') {
             steps {
-                echo "=== AI Vertical CI — Phase 1 stub ==="
-                echo "Branch  : ${env.BRANCH_NAME ?: env.GIT_BRANCH ?: 'unknown'}"
-                echo "Commit  : ${env.GIT_COMMIT ?: 'unknown'}"
-                echo "Build # : ${env.BUILD_NUMBER}"
-                echo "Scanners and AI review will run here in Phase 2."
+                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    script {
+                        def branch = (env.GIT_BRANCH ?: env.BRANCH_NAME ?: 'HEAD').replaceFirst('^origin/', '')
+                        if (branch in ['main', 'master']) {
+                            currentBuild.result = 'NOT_BUILT'
+                            echo "Push to ${branch} — no PR to check. Skipping scanner stages."
+                            return
+                        }
+                        def pr = sh(
+                            script: "python3 scripts/github_api.py get-pr '${env.GH_REPO}' '${branch}'",
+                            returnStdout: true
+                        ).trim()
+                        if (!pr || pr == 'none') {
+                            currentBuild.result = 'NOT_BUILT'
+                            echo "No open PR for branch ${branch}. Skipping scanner stages."
+                            return
+                        }
+                        env.PR_NUMBER = pr
+                        echo "Detected PR #${pr} for branch ${branch}"
+                    }
+                }
+            }
+        }
+
+        stage('Extract Merge Base') {
+            when { expression { env.PR_NUMBER != null } }
+            steps {
+                sh 'git fetch --no-tags origin main || git fetch --no-tags origin master || true'
+                script {
+                    env.MERGE_BASE = sh(
+                        script: 'git merge-base origin/main HEAD 2>/dev/null || git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD^',
+                        returnStdout: true
+                    ).trim()
+                }
+                sh 'mkdir -p findings'
+            }
+        }
+
+        stage('Scan Secrets') {
+            when { expression { env.PR_NUMBER != null } }
+            steps {
+                script {
+                    def rc = sh(script: 'bash scripts/scan_secrets.sh', returnStatus: true)
+                    if (rc != 0) {
+                        withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                            sh 'python3 scripts/post_comment.py'
+                        }
+                        error('Secret found — pipeline aborted before any LLM call')
+                    }
+                }
+            }
+        }
+
+        stage('Scan Code') {
+            when { expression { env.PR_NUMBER != null } }
+            steps { sh 'bash scripts/scan_code.sh' }
+        }
+
+        stage('Scan Deps') {
+            when { expression { env.PR_NUMBER != null } }
+            steps { sh 'bash scripts/scan_deps.sh' }
+        }
+
+        stage('Run Linters') {
+            when { expression { env.PR_NUMBER != null } }
+            steps { sh 'bash scripts/run_linters.sh' }
+        }
+
+        stage('Run Tests') {
+            when { expression { env.PR_NUMBER != null } }
+            steps {
+                sh 'python3 -m pytest tests/ -v --tb=short 2>&1 | tee findings/test_results.txt || true'
+            }
+        }
+
+        stage('Post Results') {
+            when { expression { env.PR_NUMBER != null } }
+            steps {
+                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    sh 'python3 scripts/post_comment.py'
+                }
             }
         }
     }
@@ -32,12 +111,7 @@ pipeline {
     post {
         always {
             echo "Pipeline finished. Result: ${currentBuild.currentResult}"
-        }
-        success {
-            echo "All checks passed — ready for Phase 2 scanner stages."
-        }
-        failure {
-            echo "Pipeline failed. Check the stage logs above."
+            cleanWs()
         }
     }
 }
