@@ -42,7 +42,7 @@ RUN set -eux; \
 # Semgrep — pin version for reproducible builds.
 # Check https://pypi.org/project/semgrep/ for latest stable before upgrading.
 ARG SEMGREP_VERSION=1.74.0
-RUN pip3 install --no-cache-dir "semgrep==${SEMGREP_VERSION}" --break-system-packages
+RUN pip3 install --no-cache-dir "semgrep==${SEMGREP_VERSION}" pytest --break-system-packages
 
 # ── Back to unprivileged jenkins user ─────────────────────────────────────────
 USER jenkins
