@@ -30,7 +30,7 @@ RUN set -eux; \
     rm /tmp/gitleaks.tar.gz
 
 # Trivy — bump TRIVY_VERSION to latest stable at https://github.com/aquasecurity/trivy/releases
-ARG TRIVY_VERSION=0.57.1
+ARG TRIVY_VERSION=0.76.2
 RUN set -eux; \
     curl -sSfL \
       "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
