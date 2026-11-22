@@ -53,48 +53,40 @@ Confirm git is installed: `git --version`. If not, download from **https://git-s
 
 ## 2. Store the Token in Jenkins
 
-> Jenkins must hold the token as a credential so scripts never hardcode it.
+> Jenkins needs the **same PAT** stored as **two separate credentials**,
+> because two different consumers need two different credential types:
+> - the Git SCM checkout (cloning the repo) needs **Username with password**
+> - the Jenkinsfile's `withCredentials([string(...)])` call — used for PR
+>   comments and status checks — strictly requires **Secret text**
+>
+> Using one credential ID for both fails with either `Invalid refspec` (if
+> stored as Secret text, the checkout can't authenticate) or `Credentials
+> 'github-token' is of type 'Username with password' where
+> 'StringCredentials' was expected` (if stored as Username+password, the
+> Jenkinsfile's string binding rejects it). This was hit for real — see
+> `docs/DECISIONS.md`.
 
-**Option A — via Jenkins UI (quickest for first run):**
+**Credential 1 — `github-checkout` (Username with password), for git clone:**
 
 1. Open Jenkins at `http://localhost:8080`.
 2. Go to **Manage Jenkins → Credentials → System → Global credentials → Add Credentials**.
-3. Kind: **Secret text**.
-4. Secret: paste your GitHub PAT.
-5. ID: `github-token` ← **this exact ID is used in the Jenkinsfile**.
-6. Description: `GitHub PAT for PR comments and status checks`.
-7. Click **Create**.
+3. Kind: **Username with password**.
+4. Username: your GitHub username (anything non-empty works over HTTPS with a PAT).
+5. Password: paste your GitHub PAT.
+6. ID: `github-checkout` ← **this exact ID is used in `jenkins/casc/jenkins.yaml`**.
+7. Description: `GitHub PAT for repo checkout`.
+8. Click **Create**.
 
-**Option B — via JCasC (declarative, reproducible):**
+**Credential 2 — `github-token` (Secret text), for PR comments/status:**
 
-> ⚠️ Not currently wired up, and not recommended as-is: it requires putting
-> `GITHUB_TOKEN` in the Jenkins container's environment, which every pipeline
-> `sh` step — including PR code under test — would then inherit, bypassing
-> `withCredentials` scoping entirely (see `docs/DECISIONS.md`). Option A is
-> what Phase 2 assumes.
+1. Add Credentials again.
+2. Kind: **Secret text**.
+3. Secret: paste the **same** GitHub PAT.
+4. ID: `github-token` ← **this exact ID is used in the Jenkinsfile**.
+5. Description: `GitHub PAT for PR comments and status checks`.
+6. Click **Create**.
 
-Add the following block to `jenkins/casc/jenkins.yaml` (replace `<YOUR_TOKEN>`):
-
-```yaml
-credentials:
-  system:
-    domainCredentials:
-      - credentials:
-          - string:
-              scope: GLOBAL
-              id: "github-token"
-              description: "GitHub PAT for PR comments and status checks"
-              secret: "${GITHUB_TOKEN}"   # reads from env var at Jenkins startup
-```
-
-Then set the `GITHUB_TOKEN` environment variable before running `docker compose up`:
-
-```bash
-export GITHUB_TOKEN=ghp_xxxx
-docker compose up -d
-```
-
-Option B is preferred for reproducibility. Never paste the raw token into `jenkins.yaml` — use the env-var reference.
+Both credentials hold the same token value — they're just typed differently for the two different Jenkins plugins that consume it. Never paste the raw token into `jenkins.yaml` or any committed file.
 
 ---
 

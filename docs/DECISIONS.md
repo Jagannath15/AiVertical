@@ -4,6 +4,14 @@ Running log of choices and trade-offs. Most recent first.
 
 ---
 
+## 2026-11-22 — Two credential IDs for one PAT: `github-checkout` and `github-token`
+
+**Decision:** Split what was one credential ID (`github-token`) into two: `github-checkout` (Username with password, used by the Git SCM checkout in `jenkins/casc/jenkins.yaml`) and `github-token` (Secret text, used by `withCredentials([string(...)])` in the Jenkinsfile for PR comments and status checks). Both hold the same PAT value.
+
+**Reason:** Hit for real on the first live pipeline run: `github-token` was created as Username-with-password (satisfies the git clone), which then broke `withCredentials([string(credentialsId: 'github-token', ...)])` with `Credentials 'github-token' is of type 'Username with password' where 'StringCredentials' was expected`. Jenkins credential *type* is per-ID, and the two plugins (git-client, credentials-binding) require different types for the same underlying secret — one ID can't satisfy both.
+
+**Also fixed in the same incident:** `branches('**')` combined with `lightweight(true)` on the `cpsScm` definition made Jenkins build a literal git refspec `refs/heads/**` to fetch the Jenkinsfile before deciding whether to build — jgit rejects `**` as an actual refspec (`IllegalArgumentException: Invalid refspec`), even though `**` is valid for Jenkins' own branch-name *matching*. Switched to `lightweight(false)` (full checkout), which doesn't go through that lookup.
+
 ## 2026-11-22 — Phase 2 fail-closed policy for scanners
 
 **Decision:** If a blocking scanner (Gitleaks, Semgrep, Trivy) cannot be verified as having actually run — binary missing, crash, bad commit range — the pipeline fails the build rather than reporting "clean". Each script writes an explicit `"error"` field (or `"found": null` for secrets) instead of an empty/clean result, and `post_comment.py`'s `determine_status` treats that as blocking.

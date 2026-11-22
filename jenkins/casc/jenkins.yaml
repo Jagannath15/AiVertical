@@ -46,7 +46,12 @@ jobs:
               git {
                 remote {
                   url('https://github.com/Jagannath15/AiVertical.git')
-                  credentials('github-token')
+                  // Separate credential ID from 'github-token': git SCM checkout
+                  // needs a Username-with-password credential, but the Jenkinsfile's
+                  // withCredentials([string(credentialsId: 'github-token', ...)])
+                  // strictly requires Secret-text (StringCredentials) - same ID,
+                  // two required types, can't both be satisfied at once.
+                  credentials('github-checkout')
                 }
                 // Poll all branches; Jenkinsfile decides whether to act on a PR
                 branches('**')
