@@ -14,6 +14,12 @@ entirely separate store without depending on an undocumented CGC flag.
 import os
 import subprocess
 
+# Minimal allowlist, not a copy of the whole environment: CGC is an Alpha-
+# status tool, and the chatbot process's environment holds CHATBOT_CLONE_TOKEN
+# today and will hold OAuth secrets once Plan B exists. A full os.environ
+# copy would hand all of that to every repo's cgc subprocess.
+_ALLOWED_ENV_KEYS = ("PATH", "LANG", "LC_ALL")
+
 
 def _repo_path_component(repo_id: str) -> str:
     return repo_id.replace("/", "__")
@@ -21,7 +27,8 @@ def _repo_path_component(repo_id: str) -> str:
 
 def _run_codegraphcontext(repo_path: str, graph_path: str) -> None:
     os.makedirs(graph_path, exist_ok=True)
-    env = {**os.environ, "HOME": graph_path}
+    env = {k: os.environ[k] for k in _ALLOWED_ENV_KEYS if k in os.environ}
+    env["HOME"] = graph_path
     subprocess.run(["cgc", "index", repo_path], env=env, check=True)
 
 

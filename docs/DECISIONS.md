@@ -4,6 +4,26 @@ Running log of choices and trade-offs. Most recent first.
 
 ---
 
+## 2026-11-28 — Chatbot indexing (Plan A): fixes from a live-probed final review
+
+**Decision:** Several fixes to `scripts/chatbot_*.py` before any real indexing run, found by a reviewer who actually built and probed the image rather than reading the diff alone:
+
+- Qdrant point IDs must be UUIDs (Qdrant rejects raw hex digests) — switched to `uuid.uuid5` over `repo_id:rel_path:chunk_index`.
+- The clone PAT must never be a CLI argument (`ps`/`/proc/<pid>/cmdline` visibility) — the CLI now reads `CHATBOT_CLONE_TOKEN` from the environment instead of a `--token` flag.
+- A secret split across a fixed-size chunk boundary (e.g. a PEM key) was invisible to a per-chunk-only scan — the scan now runs once over each whole file before chunking; the whole file is dropped if flagged.
+- A symlinked file inside a cloned repo, pointing outside that repo's own clone directory, could get indexed into that repo's collection — closes a path that bypassed the per-repo isolation this whole design exists for. `_walk_reviewable_files` now skips any symlink and any path whose real location resolves outside `clone_dir`.
+- `clear_collection`/`ensure_collection` now always run, even on a reindex that keeps zero chunks (every file deleted, or every chunk flagged as a secret) — previously the prior index stayed queryable forever in that case, defeating the reason `clear_collection` was added in the first place.
+- `chatbot/Dockerfile` was missing `git` and `gitleaks` entirely — the pipeline could not have run at all. Added, pinned to the same Gitleaks version as `jenkins/Dockerfile`.
+- Qdrant's host port is now bound to `127.0.0.1` only, not all interfaces — it has no API key configured and holds every indexed repo's code; the chatbot reaches it over the compose network regardless.
+- `repo_id` is validated (rejects path traversal like `..`, normalizes case) before it's used to build any filesystem path or collection name.
+- A per-repo-id lock serializes concurrent reindexes of the same repo (relevant once Plan B's reindex-trigger endpoint exists).
+
+**Reason:** The reviewer built the actual chatbot image and ran a real `qdrant-client` probe rather than trusting the diff — this is how the ID-format bug, the missing binaries, and the restart-loop-shaped Dockerfile gap were caught; mocked unit tests alone did not exercise any of them.
+
+**Known follow-up, not fixed in this pass:** whether CodeGraphContext's embedded backends actually respect the `HOME` env var override for per-repo storage isolation (`scripts/chatbot_graph.py`) is still unverified against the real `cgc` binary — Task 6's tests mock that call entirely. Verify with two real tiny repos before Plan B's structural queries depend on it.
+
+---
+
 ## 2026-11-22 — Call-graph context: build it ourselves, not CodeGraphContext or Graphify
 
 **Decision:** `scripts/call_graph.py` is a ~150-line stdlib `ast` module, Python-only, zero third-party dependencies. Both CodeGraphContext and a tool called "Graphify" were evaluated and rejected.

@@ -24,3 +24,15 @@ def test_chunk_file_skips_non_utf8_file(tmp_path):
     f.write_bytes(b"\xff\xfe\x00\x01not valid utf8")
     chunks = chunk_file(str(f), max_lines=100)  # must not raise
     assert chunks == []
+
+
+def test_chunk_file_skips_broken_symlink(tmp_path):
+    target = tmp_path / "missing_target.py"
+    link = tmp_path / "link.py"
+    try:
+        os.symlink(str(target), str(link))
+    except (OSError, NotImplementedError):
+        import pytest
+        pytest.skip("symlinks not supported on this platform")
+    chunks = chunk_file(str(link), max_lines=100)  # must not raise
+    assert chunks == []

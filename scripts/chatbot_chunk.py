@@ -5,7 +5,10 @@ def chunk_file(file_path: str, max_lines: int = 100) -> list:
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
-    except UnicodeDecodeError:
+    except (UnicodeDecodeError, OSError):
+        # OSError also covers a broken symlink, a permission error, or a
+        # directory matching a reviewable name - skip that one file, not
+        # the whole indexing run.
         return []
 
     chunks = []

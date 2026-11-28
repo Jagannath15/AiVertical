@@ -40,3 +40,18 @@ def test_clear_collection_targets_repo_specific_collection():
     client = MagicMock()
     clear_collection(client, "org/repo")
     assert client.delete.called or client.recreate_collection.called
+
+
+def test_upsert_chunks_batches_large_lists():
+    client = MagicMock()
+    chunks = [{"id": str(i), "vector": [0.1], "file_path": "a.py", "chunk_text": "x"} for i in range(600)]
+    upsert_chunks(client, "org/repo", chunks, batch_size=256)
+    assert client.upsert.call_count == 3
+
+
+def test_upsert_chunks_includes_repo_id_in_payload():
+    client = MagicMock()
+    chunks = [{"id": "1", "vector": [0.1], "file_path": "a.py", "chunk_text": "x", "repo_id": "org/repo"}]
+    upsert_chunks(client, "org/repo", chunks)
+    points = client.upsert.call_args[1]["points"]
+    assert points[0].payload["repo_id"] == "org/repo"
