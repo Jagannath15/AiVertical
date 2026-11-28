@@ -34,16 +34,42 @@ services:
       - LLM_ALLOW_CLOUD=${LLM_ALLOW_CLOUD:-false}
 
   # ── Qdrant (vector DB for chatbot — Phase 4) ─────────────────────────────
-  # Uncomment when starting Phase 4.
-  # qdrant:
-  #   image: qdrant/qdrant:latest
-  #   container_name: qdrant
-  #   restart: unless-stopped
-  #   ports:
-  #     - "6333:6333"
-  #   volumes:
-  #     - qdrant_data:/qdrant/storage
+  qdrant:
+    image: qdrant/qdrant:v1.20.2
+    container_name: qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # ── Chatbot (Phase 4) ─────────────────────────────────────────────────────
+  # No command/ports yet - added once the FastAPI app exists (Plan B).
+  chatbot:
+    build:
+      context: .
+      dockerfile: chatbot/Dockerfile
+    container_name: chatbot
+    restart: unless-stopped
+    depends_on:
+      - qdrant
+    volumes:
+      # Cloned repo source, re-cloned/pulled on each reindex
+      - chatbot_repos:/app/repos
+      # CodeGraphContext's per-repo embedded graph DB files
+      - chatbot_graphs:/app/graphs
+    environment:
+      - QDRANT_HOST=${QDRANT_HOST:-qdrant}
+      - QDRANT_PORT=${QDRANT_PORT:-6333}
+      - REPOS=${REPOS:-}
+      # Unlike GITHUB_TOKEN/LLM_API_KEY in the jenkins service above, this
+      # container never runs untrusted PR code as sibling sh steps - it's a
+      # single trusted FastAPI process - so the threat model that keeps
+      # those two out of Jenkins' container env doesn't apply here.
+      - CHATBOT_CLONE_TOKEN=${CHATBOT_CLONE_TOKEN:-}
 
 volumes:
   jenkins_home:
-  # qdrant_data:
+  qdrant_data:
+  chatbot_repos:
+  chatbot_graphs:
